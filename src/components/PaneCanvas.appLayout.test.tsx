@@ -36,7 +36,7 @@ describe("the pane canvas on a PC the Herdr app lays out", () => {
   const descriptors = new Map<string, PropertyDescriptor | undefined>();
   const stored = new Map<string, string>();
   let renderer: ReactTestRenderer | undefined;
-  // every media query answers alike: true is a cramped phone (SOLO_PANE_QUERY and CRAMPED_QUERY both hold)
+  // every media query answers alike: true is a phone, where a tab shows one pane at a time (SOLO_PANE_QUERY)
   let phone = false;
 
   beforeEach(() => {
@@ -90,41 +90,6 @@ describe("the pane canvas on a PC the Herdr app lays out", () => {
     const itemsOf = await draw(OVIS_CORE, own);
     expect(itemsOf(own.panes[0] as HerdrPane)).toEqual(["rename", "clear-name", "zoom", "close"]);
     expect(itemsOf(own.panes[1] as HerdrPane)).toEqual(["rename", "swap-focused", "split-right", "split-down", "zoom", "close"]);
-  });
-
-  it("gives a lone tab with no row (a cramped phone) the row's menu, for the header's More menu, and no pane ellipsis", async () => {
-    phone = true;
-    const itemsOf = await draw(TUI);
-    expect(itemsOf(snapshot.panes[0] as HerdrPane)).toEqual(["pane:p1", "pane:p2", "rename", "clear-name", "close", "new-terminal", "new-agent-tab", "rename-tab", "close-tab"]);
-    const heads = renderer!.root.findAll((node) => node.props.className === "pane-frame-head");
-    expect(heads.map((head) => head.parent?.props["data-layout-pane"])).toEqual(["p2"]);
-  });
-
-  // a one-pane lone tab beside another workspace: herdr moves it there, as the row's menu offers
-  const movable: SessionSnapshot = {
-    ...snapshot,
-    workspaces: [{ ...snapshot.workspaces[0]!, pane_count: 1 }, { ...snapshot.workspaces[0]!, workspace_id: "w2", label: "w2", active_tab_id: "t2", number: 2, focused: false }],
-    tabs: [{ ...snapshot.tabs[0]!, pane_count: 1 }, { ...snapshot.tabs[0]!, tab_id: "t2", workspace_id: "w2", focused: false }],
-    panes: [pane("p1"), { ...pane("p3"), workspace_id: "w2", tab_id: "t2" } as HerdrPane],
-    layouts: [],
-  };
-
-  it("gives a lone one-pane tab with no row Move to workspace and Close tab, as the row's menu does", async () => {
-    phone = true;
-    const itemsOf = await draw(TUI, movable);
-    expect(itemsOf(movable.panes[0] as HerdrPane)).toEqual(["rename", "close", "new-terminal", "move-workspace", "new-agent-tab", "rename-tab", "close-tab"]);
-  });
-
-  it("keeps a lone tab with no row on a PC the Herdr app lays out to Close tab, with no move or rename", async () => {
-    phone = true;
-    const itemsOf = await draw(APP_CORE, movable);
-    expect(itemsOf(movable.panes[0] as HerdrPane)).toEqual(["close", "new-terminal", "new-agent-tab", "close-tab"]);
-  });
-
-  it("gives a lone tab with no row on a core whose layout Ovis keeps the same menu as herdr's TUI", async () => {
-    phone = true;
-    const itemsOf = await draw(OVIS_CORE, movable);
-    expect(itemsOf(movable.panes[0] as HerdrPane)).toEqual(["rename", "close", "new-terminal", "move-workspace", "new-agent-tab", "rename-tab", "close-tab"]);
   });
 
   it("leaves no actions behind for the header's menu once the canvas is gone", async () => {
@@ -253,12 +218,11 @@ describe("the pane canvas on a PC the Herdr app lays out", () => {
   });
 
   it("offers no Close for a locked pinned agent, nor Close tab for the tab it is in (#2432)", async () => {
-    phone = true;
     stored.set("ovis:settings", JSON.stringify({ agentLocks: true, lockedAgents: ["local:p1"] }));
     setSidebarPins(["local:p1"]);
     try {
       const itemsOf = await draw(TUI);
-      expect(itemsOf(snapshot.panes[0] as HerdrPane)).toEqual(["pane:p1", "pane:p2", "rename", "clear-name", "unlock", "new-terminal", "new-agent-tab", "rename-tab"]);
+      expect(itemsOf(snapshot.panes[0] as HerdrPane)).toEqual(["rename", "clear-name", "split-right", "split-down", "zoom", "unlock"]);
       // the other pane of the tab still closes on its own; the tab, with the locked agent in it, does not
       expect(itemsOf(snapshot.panes[1] as HerdrPane)).toContain("close");
       expect(itemsOf(snapshot.panes[1] as HerdrPane)).not.toContain("close-tab");

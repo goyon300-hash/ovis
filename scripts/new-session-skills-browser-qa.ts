@@ -47,11 +47,11 @@ async function openChat(page: Page, url: string): Promise<void> {
   await page.locator(".pane-frame.is-current .terminal-stack.is-chat").waitFor();
 }
 
-/** The New tab dialog on the pane's workspace: a phone's header title lists the tabs and the ways to a new one (a sheet); with a mouse the tab's own menu. */
+/** The New tab dialog on the pane's workspace: the open tab's own menu, a sheet on a phone and a popover with a mouse. */
 async function openDialog(page: Page) {
   const phone = (page.viewportSize()?.width ?? 1280) <= 640;
   if (phone) {
-    await page.locator(".app-header .context-tabs").tap();
+    await page.locator(".phone-tab-menu, .tab-strip-item.is-active .tab-strip-menu").tap();
     // the menu is a sheet on a phone (RowMenu): its items are buttons there
     await page.getByRole("button", { name: "New tab with agent…", exact: true }).tap();
   } else {

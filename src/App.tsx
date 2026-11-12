@@ -1,5 +1,5 @@
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Bell, ChevronDown, Plus, CircleHelp, Ellipsis, FolderOpen, Link, Menu, MessageCircle, MessageSquare, PanelLeft, PanelsTopLeft, Search, SquareTerminal, Target, TextSearch, X } from "lucide-react";
+import { Bell, Plus, CircleHelp, Ellipsis, FolderOpen, Link, Menu, MessageCircle, MessageSquare, PanelLeft, Search, SquareTerminal, Target, Terminal, TextSearch, X } from "lucide-react";
 
 import type { HerdrPane, PaneDirection } from "../shared/protocol.ts";
 import { authenticate, createTab, movePaneBeside, moveTabToWorkspace, paneSessionKey, shareSeen, swapPaneWith } from "./lib/api.ts";
@@ -33,6 +33,7 @@ import { SettingsDialog } from "./components/SettingsDialog.tsx";
 import { loadedOnSettingsEntry } from "./lib/settingsHistory.ts";
 import { useSettingsDialog } from "./lib/useSettingsDialog.ts";
 import { usePhoneSheetBack } from "./lib/sheetHistory.ts";
+import { usePaneSheet } from "./lib/usePaneSheet.ts";
 import { peekFor, type PeekRequest } from "./lib/terminalPeek.ts";
 import { SHEET_QUERY } from "./lib/sheets.ts";
 import { linksSomewhere, readLink } from "./lib/deepLink.ts";
@@ -64,8 +65,7 @@ import { formatKeys, shortcutDisplayKeys, useShortcuts } from "./lib/shortcuts.t
 import { useHerdrPrefixKeys } from "./lib/herdrKeys.ts";
 import { useMediaQuery } from "./lib/useMediaQuery.ts";
 import { useAnnouncedText } from "./lib/useAnnouncedText.ts";
-import { CRAMPED_QUERY, paneContextPress, tabRowHidden } from "./lib/paneCanvas.ts";
-import { useTabSheet } from "./lib/useTabSheet.ts";
+import { paneContextPress } from "./lib/paneCanvas.ts";
 import type { AppActions, PaneView, PaneControls } from "./lib/actions.ts";
 import { removePushSubscription } from "./lib/push.ts";
 import { resetPushHealth } from "./lib/pushHealth.ts";
@@ -484,6 +484,8 @@ export function App() {
     : null;
   const tabPlace = snapshot ? tabPosition(snapshot, selectedPaneId) : null;
   const position = tabPlace && { ...tabPlace, words: t("Tab {index} of {count}", { index: tabPlace.index, count: tabPlace.count }) };
+  // the open tab's panes, in the roster's order: a phone shows one at a time, and the 1/2 chip picks another
+  const tabPanes = selectedPane && snapshot ? rosterPanes(snapshot.panes.filter((pane) => pane.tab_id === selectedPane.tab_id), selectedPane.pane_id) : [];
 
   const tabTitle = selectedPane ? tabPaneTitle(selectedPane) : null;
   useEffect(() => {
@@ -748,39 +750,26 @@ export function App() {
   // only once the shell is drawn: a drawer a link opens behind the access gate takes its focus when it mounts
   const drawerModal = locked === false && drawerOpen && !wideScreen;
   const { ref: drawerRef } = useDrawerDialog(drawerModal, setDrawerOpen, [peekSidebarRef]);
-  // a phone (the sheets' width) draws no tab row: the header's title lists the tabs (TabStrip's sheet),
-  // as the Codex and Claude apps title a thread and list the others from it
-  const { tabsInHeader, sheet: tabSheet, toggle: toggleTabSheet, close: closeTabSheet } = useTabSheet(selectedPane !== null && !guideShown ? JSON.stringify([selectedMachineId, selectedPane.workspace_id]) : null);
-  // there, and for a lone tab on a cramped phone, the row and its pane's ellipsis are not drawn (TabStrip,
-  // PaneCanvas): the header's own ellipsis is the one menu, so it carries the pane's and the tab's actions too.
-  // They come from the canvas's last render; each runs as the canvas's latest one has it, and does
-  // nothing when that one no longer offers it (the pane or the layout changed while the menu was open)
-  const cramped = useMediaQuery(CRAMPED_QUERY);
-  const paneMenuInMore = selectedPane !== null
-    && tabRowHidden(cramped, snapshot?.tabs.filter((tab) => tab.workspace_id === selectedPane.workspace_id).length ?? 0, tabsInHeader);
+  // a phone's pane picker: the header's 1/2 chip, when the open tab holds more than one pane
+  const paneSheet = usePaneSheet(selectedPane !== null && !guideShown ? JSON.stringify([selectedMachineId, selectedPane.tab_id]) : null);
   // More's first item jumps to the next session waiting for you, and where no status bar says it, a
   // waiting-coloured dot on its button says how many. The running and the finished ones are the sidebar's
   // (the drawer's on a phone): the header does not count them
   const waitingInMore = sessionTally.waiting > 0;
-  const currentTabInMore = paneMenuInMore && selectedPane ? snapshot?.tabs.find((tab) => tab.tab_id === selectedPane.tab_id) : undefined;
-  const currentTabPlace = currentTabInMore && snapshot ? snapshot.tabs.filter((tab) => tab.workspace_id === selectedPane!.workspace_id).indexOf(currentTabInMore) + 1 : 1;
-  const currentTabName = currentTabInMore ? (customTabLabel(currentTabInMore, currentTabPlace) ?? tabLabel(currentTabInMore, t, currentTabPlace)) : null;
-  const paneMoreItems = paneMenuInMore && selectedPane ? (paneActionsRef.current?.(selectedPane) ?? []).map((item, index): RowMenuItem => ({
-    ...item, divider: index === 0 || item.divider,
-    ...(item.id === "rename-tab" && currentTabName ? { hint: currentTabName, title: `${item.label} · ${currentTabName}` } : {}),
-    run: () => paneActionsRef.current?.(selectedPane).find((fresh) => fresh.id === item.id)?.run(),
-  })) : [];
+  // the open tab's name, as More's header says where the pane is
+  const openTab = selectedPane && snapshot ? snapshot.tabs.find((tab) => tab.tab_id === selectedPane.tab_id) : undefined;
+  const openTabPlace = openTab && snapshot ? snapshot.tabs.filter((tab) => tab.workspace_id === openTab.workspace_id).indexOf(openTab) + 1 : 1;
+  const openTabName = openTab ? (customTabLabel(openTab, openTabPlace) ?? tabLabel(openTab, t, openTabPlace)) : null;
+  const phoneNavigation = !wideScreen && !guideShown && selectedPane !== null && selectedWorkspace !== null && snapshot !== null;
   const moreBase = alertsOffDot ? t("More · alerts are off") : t("More");
   const moreLabel = waitingInMore ? `${moreBase} · ${t("{count} waiting for you", { count: sessionTally.waiting })}` : moreBase;
   const findInTerminal: RowMenuItem[] = selectedPane && !selectedPane.restore_error ? [{ id: "find", label: t("Find in terminal"), icon: Search, run: actions.openFind }] : [];
-  // at a phone's width, the find items and the pane's and tab's actions fold into one item each, More keeping the
-  // palette, Files, Copy link, Alerts and the tab's panes in sight (G-143); a group of one is not folded
-  const findGroup = [...findInTerminal, ...paneMoreItems.filter((item) => item.id === "search-conversation")].map((item) => ({ ...item, divider: false }));
-  // a group open when the window widens past a phone's closes: More lists its items itself there
-  const paneGroup = paneMoreItems.filter((item) => item.id !== "search-conversation" && !item.id.startsWith("pane:"));
+  // at a phone's width the find items fold into one item, More keeping the palette, Files, Copy link
+  // and Alerts in sight (G-143); a group of one is not folded. The pane's and the tab's actions are
+  // the tab row's own menu (TabStrip), so More never repeats them.
+  const findGroup = findInTerminal.map((item) => ({ ...item, divider: false }));
   const foldFind = isSheetWidth && findGroup.length > 1;
-  const foldPane = isSheetWidth && paneGroup.length > 1;
-  const groupItems = openGroupItems(moreGroup?.kind ?? null, isSheetWidth, findGroup, paneGroup);
+  const groupItems = openGroupItems(moreGroup?.kind ?? null, isSheetWidth, findGroup, []);
   useGroupClosedWhenEmpty(moreMenu, groupItems.length === 0);
   const moreItems: RowMenuItem[] = [
     ...(waitingInMore && nextWaiting !== null ? [{ id: "next-waiting", label: t("Open the next session waiting for you"), hint: String(sessionTally.waiting), icon: CircleHelp, run: openNextWaiting }] : []),
@@ -792,10 +781,6 @@ export function App() {
     // the address says where the app is (lib/deepLink.ts); a phone has no address bar to copy it from
     { id: "copy-link", label: t("Copy link"), icon: Link, run: () => void copyText(window.location.href).then((ok) => { if (ok) setHeaderNote("copied"); }) },
     { id: "alerts", label: t("Alerts"), hint: bell.state, checked: bell.on, title: bell.title, icon: Bell, run: () => void bell.run() },
-    // what is left of the pane's items in More itself, a hairline over the first as before
-    ...paneMoreItems.filter((item) => !(foldFind && item.id === "search-conversation") && (!foldPane || item.id.startsWith("pane:")))
-      .map((item, index) => index === 0 ? { ...item, divider: true } : item),
-    ...(foldPane && more ? [{ id: "pane-group", label: t("Pane and tab…"), icon: PanelsTopLeft, divider: true, run: () => openMoreGroup("pane", more.anchor) }] : []),
   ];
 
   // the chat's surface is what the pane column shows: the header's pane zone and the tab strip
@@ -803,8 +788,8 @@ export function App() {
   const chatShown = showsChat(selectedPane, view);
   // From 769px with one pane in view the header is one row, a browser's tab strip: the workspace's tabs and +,
   // then the lens switch, Files and More (styles.css .header-tabs, THIRD_PARTY_NOTICES.md). A split keeps a
-  // strip per half and the title here; a phone keeps the title that lists the tabs.
-  const stripInHeader = wideScreen && !splitOn && !tabsInHeader && !guideShown && snapshot !== null && selectedPane !== null && selectedWorkspace !== null;
+  // strip per half and the title here; a phone keeps the title and draws the row under it (TabStrip).
+  const stripInHeader = wideScreen && !splitOn && !guideShown && snapshot !== null && selectedPane !== null && selectedWorkspace !== null;
   // from 769px with a mouse the pane column ends in the Herdr app's status bar: where the pane is, its branch,
   // the connection. A touch screen keeps that room for its key bar and says them in More and the chip.
   const statusBarShown = wideScreen && keyboardLikely && selectedPane !== null && crumb !== null && !guideShown;
@@ -864,7 +849,7 @@ export function App() {
             buttons sit in the bar */}
         <div className="header-side">
           {wideScreen && !sidebarCollapsed && <SidebarBrand dark={resolvedTheme === "dark"} />}
-          <button
+          {!phoneNavigation && <button
             type="button"
             id="drawer-toggle"
             className="icon-button drawer-toggle"
@@ -875,7 +860,7 @@ export function App() {
             onClick={() => setDrawerOpen((open) => !open)}
           >
             {drawerOpen ? <X /> : <Menu />}
-          </button>
+          </button>}
           {((wideScreen && !sidebarCollapsed) || (!wideScreen && drawerOpen)) && settings.sidebarRows !== "two" && <button type="button" id="drawer-new-workspace" className="icon-button new-workspace-button" disabled={auth?.role === "watch" || selectedMachine?.state !== "connected"} aria-label={t("New workspace")} title={auth?.role === "watch" ? `${t("New workspace")} · ${t("View only")}` : t("New workspace")} onClick={() => actions.openNewSession()}>
             <Plus aria-hidden="true" />
           </button>}
@@ -915,20 +900,38 @@ export function App() {
             </PanePressContext.Provider>
             </RenderBoundary>
           </div>
+        ) : phoneNavigation && crumb ? (
+          <div className="phone-context">
+            <button type="button" id="drawer-toggle" className="phone-workspace drawer-toggle" aria-label={t(drawerOpen ? "Close workspace list" : "Open workspace list")}
+              title={crumb.workspace} aria-haspopup="dialog" aria-expanded={drawerOpen} aria-controls="workspace-drawer" onClick={() => setDrawerOpen((open) => !open)}>
+              {drawerOpen ? <X aria-hidden="true" /> : <FolderOpen aria-hidden="true" />}
+              <span className="phone-workspace-copy"><span className="phone-workspace-name">{crumb.workspace}</span>
+                <span className={`phone-workspace-machine${headerConnection === "reconnecting" ? " is-reconnecting" : ""}`}>
+                  {auth?.role === "watch" ? `${t("View only")} · ` : ""}{headerConnection === "reconnecting" ? t("Reconnecting…") : crumb.machine}
+                </span>
+              </span>
+            </button>
+            {tabPanes.length > 1 && <button type="button" className="context-position is-picker" aria-label={`${t("Panes")} · ${tabPanes.findIndex((pane) => pane.pane_id === selectedPaneId) + 1}/${tabPanes.length}`}
+              aria-haspopup={isSheetWidth ? "dialog" : "menu"} aria-expanded={paneSheet.anchor !== null} onClick={(event) => paneSheet.toggle(event.currentTarget)}>
+              {tabPanes.findIndex((pane) => pane.pane_id === selectedPaneId) + 1}/{tabPanes.length}
+            </button>}
+          </div>
         ) : note !== null ? null : selectedPane && crumb ? (
-          <div className={`context${headerConnection === null ? "" : " has-connection"}${tabsInHeader && selectedWorkspace && !guideShown ? " has-tabs" : ""}`} title={crumb.tooltip}>
+          <div className={`context${headerConnection === null ? "" : " has-connection"}`} title={crumb.tooltip}>
             <div className="context-title">
               {selectedAgent && <AgentMark agent={selectedAgent} size={18} />}
               <span className="context-title-text" role="group" aria-label={[selectedAgent ? agentName(selectedAgent) : null, crumb.fullContext].filter((part) => part !== null).join(" · ")}>{selectedTitle}</span>
-              {position && <span className="context-position" title={position.words}>
-                <span aria-hidden="true">{position.index}/{position.count}</span>
-                <span className="visually-hidden">{position.words}</span>
-              </span>}
-              {/* the whole title is its target (styles.css .context-tabs::after) */}
-              {tabsInHeader && selectedWorkspace && !guideShown && <button type="button" className="context-tabs" aria-label={t("Tabs of {workspace}", { workspace: selectedWorkspace.label })}
-                aria-haspopup="dialog" aria-expanded={tabSheet !== null} onClick={(event) => toggleTabSheet(event.currentTarget)}>
-                <ChevronDown aria-hidden="true" />
-              </button>}
+              {position && (tabPanes.length > 1
+                ? <button type="button" className="context-position is-picker" title={position.words} aria-haspopup={isSheetWidth ? "dialog" : "menu"}
+                    aria-expanded={paneSheet.anchor !== null} aria-label={`${t("Panes")} · ${position.words}`}
+                    onClick={(event) => paneSheet.toggle(event.currentTarget)}>
+                    <span aria-hidden="true">{position.index}/{position.count}</span>
+                    <span className="visually-hidden">{position.words}</span>
+                  </button>
+                : <span className="context-position" title={position.words}>
+                    <span aria-hidden="true">{position.index}/{position.count}</span>
+                    <span className="visually-hidden">{position.words}</span>
+                  </span>)}
             </div>
             {/* lost and back, the connection takes the crumb's place in words, in the same box: nothing moves */}
             <div className={`context-sub${headerConnection === null ? "" : ` context-connection is-${headerConnection}`}`}>
@@ -1004,8 +1007,8 @@ export function App() {
               : localFreshness === "unavailable" && (health?.herdr.runtime === "herdr-core"
                 ? <span className="pill pill-offline" title={t("Open the Herdr app on this PC, or check HC_SESSION and HC_SOCKET.")}>{t("herdr-core unavailable")}</span>
                 : <span className="pill pill-offline" title={t("Start herdr on this PC, or check HERDR_SOCKET.")}>{t("herdr unavailable")}</span>)}
-          <span className="header-more">
-            <button
+          <span className="header-more" id={phoneNavigation ? "phone-tab-actions" : undefined}>
+            {!phoneNavigation && <button
               type="button"
               className="icon-button header-more-button"
               aria-label={moreLabel}
@@ -1018,7 +1021,7 @@ export function App() {
               }}
             >
               <Ellipsis />
-            </button>
+            </button>}
             {/* the waiting dot carries the count (G-015): the number a phone otherwise reads only inside More */}
             {waitingDot ? <span className="header-more-dot is-waiting" data-count={sessionTally.waiting} aria-hidden="true" /> : alertsOffDot && <span className="header-more-dot" aria-hidden="true" />}
           </span>
@@ -1032,7 +1035,7 @@ export function App() {
                 {/* the status bar says where the pane is; the session's lines and the route stay here */}
                 {/* the pane's whole title, which the header cuts short: a phone has no tooltip, so More says it, with the agent (G-069) */}
                 {!statusBarShown && selectedTitle !== null && <span className="header-more-title">{selectedAgent ? `${agentName(selectedAgent)} · ${selectedTitle}` : selectedTitle}</span>}
-                {!statusBarShown && <span>{currentTabName ? `${crumb.place} › ${currentTabName}` : crumb.place}</span>}
+                {!statusBarShown && <span>{openTabName ? `${crumb.place} › ${openTabName}` : crumb.place}</span>}
                 {!statusBarShown && crumb.path !== null && <span className="header-more-path">{crumb.path}</span>}
                 {sessionLines !== null && <span className="header-more-session">
                   <span>{sessionLines.totals}</span>
@@ -1047,6 +1050,12 @@ export function App() {
           />
         )}
         {moreGroup && groupItems.length > 0 && <RowMenu anchor={moreGroup.anchor} title={t(moreGroup.kind === "find" ? "Find…" : "Pane and tab…")} items={groupItems} onClose={closeMoreGroup} />}
+        {paneSheet.anchor && tabPanes.length > 1 && <RowMenu anchor={paneSheet.anchor} title={t("Panes")} items={tabPanes.map((pane): RowMenuItem => ({
+          id: `pane:${pane.pane_id}`, label: displayPaneTitle(pane), icon: Terminal,
+          glyph: pane.agent ? <AgentMark agent={pane.agent} size={16} /> : undefined,
+          current: pane.pane_id === selectedPaneId,
+          run: () => selectPane(pane.pane_id),
+        }))} onClose={paneSheet.close} />}
       </header>
 
       <PanePressContext.Provider value={pressPane}>
@@ -1176,7 +1185,17 @@ export function App() {
                 {!(slotSnapshot && pane && workspace) && slotBar}
                 {slotSnapshot && pane && workspace && !(active && stripInHeader) && (
                   <TabStrip snapshot={slotSnapshot} workspace={workspace} selectedPane={pane} panelId={slotPanelId} splitDrag={wideScreen} onSelectPane={onSelect}
-                    inHeader={tabsInHeader} sheet={active ? tabSheet : null} onSheetClose={closeTabSheet} end={slotEnd} closable={auth?.role !== "watch"}
+                    end={slotEnd} closable={auth?.role !== "watch"}
+                    phoneActionsId={active && phoneNavigation ? "phone-tab-actions" : undefined}
+                    appActions={active && phoneNavigation ? moreItems : undefined}
+                    phoneMenuLabel={moreLabel}
+                    phoneMenuContext={active && phoneNavigation && crumb ? <div className="header-more-crumb">
+                      <span className="header-more-title">{selectedAgent ? `${agentName(selectedAgent)} · ${selectedTitle}` : selectedTitle}</span>
+                      <span>{crumb.place}</span>
+                      {crumb.path !== null && <span className="header-more-path">{crumb.path}</span>}
+                      {sessionLines !== null && <span className="header-more-session">{sessionLines.totals}{sessionLines.goal !== null && <span>{sessionLines.goal}</span>}</span>}
+                      <ConnectionRouteMark portal={auth?.via === "portal"} ingress={security.state === "known" ? security.summary.observed_ingress : null} />
+                    </div> : undefined}
                     renameRequest={active && renameRequest?.machineId === machineId && renameRequest.paneId === pane.pane_id ? renameRequest : null}
                     onRenameHandled={clearRenameRequest}
                     onNewTab={() => actions.openNewTab(active ? undefined : { machineId, workspaceId: workspace.workspace_id })}
@@ -1203,7 +1222,6 @@ export function App() {
                     onNewTab={workspace ? () => actions.openNewTab(active ? undefined : { machineId, workspaceId: workspace.workspace_id }) : undefined}
                     onNewTerminal={workspace ? () => actions.openTerminalTab(active ? undefined : { machineId, workspaceId: workspace.workspace_id }) : undefined}
                     onMoveToWorkspace={(tabId, workspaceId) => actions.moveTabToWorkspace({ machineId, tabId, workspaceId })}
-                    tabsInHeader={tabsInHeader}
                     renameRequest={active && pane && renameRequest?.machineId === machineId && renameRequest.paneId === pane.pane_id ? renameRequest : null}
                     renderPane={(item, itemActive, herdrSplit) => <OpenFileContext.Provider value={item ? (path) => openFile({ path, paneId: item.pane_id, machineId }) : null}>
                       <PaneTerminal

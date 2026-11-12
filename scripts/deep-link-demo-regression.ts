@@ -649,12 +649,13 @@ try {
         await waitSelected(page, INFRA);
         assert.equal(await page.locator(".palette-button").isVisible(), false, "the phone header has no palette button");
         await page.locator(".header-more-button").tap();
-        const more = page.getByRole("dialog", { name: "More", exact: true });
+        const more = page.locator(".row-sheet");
         await more.waitFor();
         const search = more.getByRole("button", { name: "Search panes and actions", exact: true });
         assert.equal(await search.count(), 1, "More offers Search panes and actions");
         // a phone's header lists the tabs, so More leads with the jump to a session waiting for you, when one waits
-        assert.equal((await more.locator(".row-sheet-item .row-sheet-label").allTextContents()).find((label) => label !== "Open the next session waiting for you"), "Search panes and actions", "Search panes and actions is More's first item of its own");
+        const labels = await more.locator(".row-sheet-item .row-sheet-label").allTextContents();
+        assert.ok(labels.indexOf("Search panes and actions") > labels.indexOf("New tab with agent…"), "application commands follow the scoped tab actions");
         await more.getByRole("button", { name: "Browse files", exact: true }).tap();
         const files = page.getByRole("dialog", { name: "Files", exact: true });
         await files.waitFor();
@@ -701,7 +702,7 @@ try {
         await waitQuery(page, "pane", DOCS);
         const length = await page.evaluate(() => history.length);
         const more = page.locator(".header-more-button");
-        const sheet = page.getByRole("dialog", { name: "More", exact: true });
+        const sheet = page.locator(".row-sheet");
         await more.tap();
         await sheet.waitFor();
         assert.equal(await page.evaluate(() => history.length), length + 1, "an open sheet is an entry");

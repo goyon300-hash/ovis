@@ -102,7 +102,7 @@ async function select(page: Page, pane: string): Promise<void> {
 /** The selected pane's actions: a lone pane keeps them in its tab's ⋯, shown once the pointer is over the strip. */
 async function openPaneMenu(page: Page): Promise<void> {
   await page.locator(".tab-strip").hover();
-  await page.locator(".tab-strip-item.is-active .tab-strip-menu").click();
+  await page.locator(".phone-tab-menu, .tab-strip-item.is-active .tab-strip-menu").click();
 }
 
 async function openRecovery(page: Page) {

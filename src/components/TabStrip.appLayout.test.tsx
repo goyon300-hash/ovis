@@ -45,7 +45,7 @@ describe("the tab strip on a PC the Herdr app lays out", () => {
   let activeTab: { dataset: { tabId: string } };
 
   beforeEach(() => {
-    for (const key of ["window", "document", "navigator", "getComputedStyle", "localStorage", "HTMLElement", "CSS", "IS_REACT_ACT_ENVIRONMENT"]) descriptors.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
+    for (const key of ["window", "document", "navigator", "getComputedStyle", "localStorage", "HTMLElement", "CSS", "ResizeObserver", "IS_REACT_ACT_ENVIRONMENT"]) descriptors.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
     stored.clear();
     requested = [];
     activeTab = { dataset: { tabId: "w1:t1" } };
@@ -56,6 +56,7 @@ describe("the tab strip on a PC the Herdr app lays out", () => {
     define("IS_REACT_ACT_ENVIRONMENT", true);
     define("HTMLElement", class HTMLElement {});
     define("CSS", { escape: (value: string) => value });
+    define("ResizeObserver", class { observe() {} disconnect() {} });
     define("localStorage", storage);
     define("navigator", { languages: ["en-US"], platform: "Linux" });
     define("window", { localStorage: storage, matchMedia: () => media, innerWidth: 1280, innerHeight: 800, addEventListener: events.addEventListener.bind(events), removeEventListener: events.removeEventListener.bind(events), requestAnimationFrame: () => 1, cancelAnimationFrame() {}, setTimeout, clearTimeout });
@@ -73,10 +74,12 @@ describe("the tab strip on a PC the Herdr app lays out", () => {
     }
   });
 
-  async function draw(offer: LayoutOffer): Promise<void> {
+  async function draw(offer: LayoutOffer, drawn = snapshot, selectedPane = drawn.panes[0]!): Promise<void> {
     await act(async () => {
-      renderer = create(createElement(SettingsProvider, null, createElement(AppLayoutContext.Provider, { value: offer },
-        createElement(TabStrip, { snapshot, workspace: snapshot.workspaces[0]!, selectedPane: snapshot.panes[0]!, onSelectPane: () => {}, onNewTab: () => {}, onNewTerminal: async () => {}, onMoveToWorkspace: async () => {} }))), { createNodeMock: node });
+      const tree = createElement(SettingsProvider, null, createElement(AppLayoutContext.Provider, { value: offer },
+        createElement(TabStrip, { snapshot: drawn, workspace: drawn.workspaces[0]!, selectedPane, onSelectPane: () => {}, onNewTab: () => {}, onNewTerminal: async () => {}, onMoveToWorkspace: async () => {} })));
+      if (renderer) renderer.update(tree);
+      else renderer = create(tree, { createNodeMock: node });
     });
   }
   const tab = () => renderer!.root.findByProps({ "data-tab-id": "w1:t1" });
@@ -166,6 +169,20 @@ describe("the tab strip on a PC the Herdr app lays out", () => {
       expect(await menuOf()).toEqual(["move-right", "move-workspace", "new-agent-tab", "rename-tab", "close-tab"]);
       await keyDown("F2");
       expect(renameFields()).toBe(1);
+    });
+  });
+
+  it("keeps a numeric tab's fallback label stable across browser-local pane selection without renaming the runtime", async () => {
+    await withFetch(async () => {
+      const first = { ...snapshot.panes[0]!, label: "Payments API" };
+      const second = { ...first, pane_id: "w1:t1:second", label: "Payment test runner" };
+      const drawn = { ...snapshot, panes: [first, second, ...snapshot.panes.slice(1)] };
+      await draw(APP_CORE, drawn, first);
+      const label = () => renderer!.root.findAllByProps({ className: "tab-strip-label" })[0]!.props.children;
+      expect(label()).toBe("Payments API");
+      await draw(APP_CORE, drawn, second);
+      expect(label()).toBe("Payments API");
+      expect(requested).toEqual([]);
     });
   });
 

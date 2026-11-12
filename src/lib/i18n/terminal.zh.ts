@@ -86,6 +86,7 @@ export const TERMINAL_ZH: Record<string, string> = {
   "Tab {n}": "标签页 {n}",
   "Close tab": "关闭标签页",
   "Tab name": "标签页名称",
+  "Tabs of {workspace}": "{workspace} 的标签页",
   "Actions for {tab}": "{tab} 的操作",
   "Close {tab}": "关闭 {tab}",
   "{n} more tabs": "另外 {n} 个标签页",

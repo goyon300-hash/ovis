@@ -180,7 +180,9 @@ try {
   // representative pane of the workspace row; the workspace's visible name remains its own.
   await changeState(page, [{ selector: paneSelector(other.paneId), attribute: ["aria-current", "true"] }, { selector: '.tab-strip [role="tab"]', count: 1 }],
     () => page.locator(paneSelector(other.paneId)).click(), "selecting the split workspace shows its strip");
-  assert.equal(await page.locator('.tab-strip [role="tab"]').textContent(), "Tab 1", "a tab herdr named by its number reads as Tab 1");
+  // a tab herdr names by its number draws its pane's title instead (TabStrip), never "Tab 1"
+  const tabName = (await page.locator('.tab-strip [role="tab"]').textContent())?.trim() ?? "";
+  assert.ok(tabName !== "" && tabName !== "Tab 1", `a tab herdr named by its number reads as its pane's title (${tabName})`);
   // at this width the header over the pane is the pane's surface, and the strip under it is
   // the same one, not a band of the panel's colour between header and pane
   const surfaces = await page.evaluate(() => {
@@ -202,8 +204,8 @@ try {
     assert.equal(surfaces.openTab, surfaces.elevated, "the open tab is a raised pill, whatever the lens");
     assert.notEqual(surfaces.openTab, surfaces.strip, "the open tab stands apart from the strip it sits on");
   } else if (surfaces.headerChat) assert.equal(surfaces.chat, surfaces.header, "which under the chat lens is the transcript's");
-  await page.getByRole("tab", { name: "Tab 1", exact: true }).click({ button: "right" });
-  const tabMenu = page.getByRole("menu", { name: "Tab 1", exact: true });
+  await page.getByRole("tab", { name: tabName, exact: true }).click({ button: "right" });
+  const tabMenu = page.getByRole("menu", { name: tabName, exact: true });
   await tabMenu.waitFor();
   assert.deepEqual(await tabMenu.getByRole("menuitem").allTextContents(), ["New tab with agent…", "Rename tab", "Close tab"]);
   await page.keyboard.press("Escape");

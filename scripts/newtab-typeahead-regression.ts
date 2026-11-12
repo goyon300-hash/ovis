@@ -1,5 +1,5 @@
 /**
- * Keys typed right after a New tab choice (the +, the tab list's New terminal, the New tab dialog's Start) reach
+ * Keys typed right after a New tab choice (the +, a phone's + in its tab row, the New tab dialog's Start) reach
  * the new tab, every one and in order, and none the old tab; a Space or Enter typed then opens no second tab.
  * What may not go by itself (a paste, keys typed before the user went elsewhere) is held for review instead.
  */
@@ -81,11 +81,9 @@ const screenOf = (page: Page, paneId: string) => page.locator(`[data-layout-pane
 
 async function choose(page: Page, first: string, item: Case, sent: Sent[]): Promise<void> {
   if (item.way === "sheet") {
-    // the title's list stands in for the row on a narrow window
-    if (item.touch) await page.locator(".app-header .context-tabs").tap(); else await page.locator(".app-header .context-tabs").click();
+    // a phone's row carries the + itself: the list behind the header's title is gone
     sent.length = 0;
-    const entry = page.locator(".row-sheet-item", { hasText: "New terminal" });
-    if (item.touch) await entry.tap(); else await entry.click();
+    if (item.touch) await page.locator(".tab-strip-add").tap(); else await page.locator(".tab-strip-add").click();
     return;
   }
   await screenOf(page, first).click();

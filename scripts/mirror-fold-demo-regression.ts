@@ -17,7 +17,6 @@ import { buildDemoApp } from "./demo-build.ts";
 import { chromePath } from "./chrome-path.ts";
 import { appFaces } from "./app-faces.ts";
 import { shownRow, shownRows } from "./shown-rows.ts";
-import { openMoreGroup } from "./header-more.ts";
 
 const COLS = 120;
 const ROWS = 40;
@@ -202,20 +201,17 @@ const rowsWhole = async (page: Page, label: string): Promise<Visible> => {
   assert.deepEqual(seen.cut, [], `${label}: rows cut off on the right ${JSON.stringify(seen)}`);
   return seen;
 };
-/** Picks `label` from the pane's actions: a phone's header More (a bottom sheet of buttons; its title lists the tabs), a desktop's tab menu (a popover of menu items, RowMenu). */
+/** Picks `label` from the pane's actions: the open tab's menu, a bottom sheet of buttons on a phone and a popover of menu items with a mouse (RowMenu). */
 const choose = async (page: Page, label: string, phone: boolean): Promise<void> => {
   // a phone layout is waited for, not sampled: just after a resize from a desktop-wide window the header
   // still holds the desktop's tab row, which the phone layout then takes away
   if (phone) {
-    await page.locator(".app-header .context-tabs").waitFor();
-    await page.locator(".header-more-button").click();
-    await page.locator(".row-sheet").waitFor();
-    // the pane's actions are under More's Pane and tab… (G-143)
-    await openMoreGroup(page, "pane");
+    await page.locator(".tab-strip").waitFor();
+    await page.locator(".phone-tab-menu, .tab-strip-item.is-active .tab-strip-menu").tap();
   } else {
     // a desktop's tab strip shows the selected tab's actions button under the pointer (ui-regression.ts)
     await page.locator(".tab-strip").first().hover();
-    const button = page.locator(".tab-strip-item.is-active .tab-strip-menu").first();
+    const button = page.locator(".phone-tab-menu, .tab-strip-item.is-active .tab-strip-menu").first();
     await button.waitFor({ state: "visible" });
     await button.click();
   }
@@ -289,11 +285,10 @@ const hostScroll = (page: Page): Promise<{ top: number; left: number }> => page.
   const host = document.querySelector<HTMLElement>(".pane-frame.is-current .pane-terminal")!;
   return { top: host.scrollTop, left: host.scrollLeft };
 });
-/** The labels of the pane's actions on a phone (its header More: the title lists the tabs; Pane and tab… under it, G-143), closed again with Escape. */
+/** The labels of the pane's actions on a phone (the open tab's menu), closed again with Escape. */
 const sheetItems = async (page: Page): Promise<string[]> => {
-  await page.locator(".header-more-button").click();
+  await page.locator(".phone-tab-menu, .tab-strip-item.is-active .tab-strip-menu").tap();
   await page.locator(".row-sheet").waitFor();
-  await openMoreGroup(page, "pane");
   const items = await page.locator(".row-sheet .row-sheet-item .row-sheet-label").allTextContents();
   await page.keyboard.press("Escape");
   await page.locator(".row-sheet").waitFor({ state: "detached" });

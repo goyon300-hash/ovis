@@ -45,7 +45,7 @@ async function shot(page: Page, name: string, state: string): Promise<void> {
 async function openDiff(page: Page, phone: boolean, path: string): Promise<void> {
   if (phone) {
     await page.locator(".header-more-button").tap();
-    await page.getByRole("dialog", { name: /^(More|더 보기)$/ }).locator("button").filter({ hasText: /^(Browse files|파일 찾아보기)$/ }).first().tap();
+    await page.locator(".row-sheet").locator("button").filter({ hasText: /^(Browse files|파일 찾아보기)$/ }).first().tap();
   } else await page.locator(".header-files-button").click();
   await page.locator(".files-dialog, [role='dialog']").first().waitFor();
   await page.locator("button").filter({ hasText: /^(Changes|변경 사항)$/ }).first().click();

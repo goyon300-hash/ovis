@@ -86,6 +86,7 @@ export const TERMINAL_JA: Record<string, string> = {
   "Tab {n}": "タブ {n}",
   "Close tab": "タブを閉じる",
   "Tab name": "タブ名",
+  "Tabs of {workspace}": "{workspace} のタブ",
   "Actions for {tab}": "{tab} の操作",
   "Close {tab}": "{tab} を閉じる",
   "{n} more tabs": "ほか {n} 個のタブ",

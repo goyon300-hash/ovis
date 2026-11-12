@@ -1,23 +1,15 @@
 import type { Locator, Page } from "playwright-core";
 
 /**
- * Opens a tab as a user does at the page's width: a phone's header title lists the workspace's tabs
- * (TabStrip's sheet), a wider screen clicks the tab in its strip.
+ * Opens a tab as a user does at the page's width: the tab's own button in the row, which every width
+ * draws (a phone's included), or, where the header's row is full, its entry in the list behind More.
  */
 export async function pickTab(page: Page, tabId: string): Promise<void> {
-  const title = page.locator(".app-header .context-tabs");
-  if (!(await title.isVisible())) {
-    await clickTab(page, tabId);
-    return;
-  }
-  await title.click();
-  const sheet = page.locator(".row-sheet");
-  await sheet.locator(`.row-sheet-item[data-item="tab:${tabId}"]`).click();
-  await sheet.waitFor({ state: "detached" });
+  await clickTab(page, tabId);
 }
 
 /**
- * Opens a tab from a wide window's strip: its button in the row, or, where the header's row is full,
+ * Opens a tab from the strip: its button in the row, or, where the header's row is full,
  * its entry in the list behind More (TabStrip). Waits for herdr's roster to list it. `untrusted`
  * clicks through the DOM, for a script that must not move the window's focus.
  */

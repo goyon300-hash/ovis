@@ -54,7 +54,7 @@ export async function alertsState(page: Page): Promise<string> {
 /** Whether the menu's button carries the dot, and says so in its name: alerts are off on this device. */
 export async function alertsOffMarked(page: Page): Promise<boolean> {
   const dot = (await page.locator(".header-more .header-more-dot").count()) === 1;
-  const named = (await page.locator(".header-more-button").getAttribute("aria-label")) === "More · alerts are off";
+  const named = (await page.locator(".header-more-button").getAttribute("aria-label"))?.includes("More · alerts are off") === true;
   if (dot !== named) throw new Error(`the More button's dot (${dot}) and its name (${named}) disagree`);
   return dot;
 }

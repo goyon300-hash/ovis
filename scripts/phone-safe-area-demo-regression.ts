@@ -169,12 +169,23 @@ try {
       await reachable(page.locator(".row-sheet .row-sheet-item").last(), UPRIGHT.insets, `${label}: the More sheet's last action`);
       await close(page, ".row-sheet");
 
-      await page.locator(".app-header .context-tabs").click();
-      clear(await outside(page, ".row-sheet", UPRIGHT.insets), `${label}: the title's tab sheet clears the insets`);
-      await reachable(page.locator(".row-sheet-cancel"), UPRIGHT.insets, `${label}: the tab sheet's Cancel`);
+      await page.locator(".phone-tab-menu, .tab-strip-item.is-active .tab-strip-menu").click();
+      clear(await outside(page, ".row-sheet", UPRIGHT.insets), `${label}: the open tab's menu clears the insets`);
+      await reachable(page.locator(".row-sheet-cancel"), UPRIGHT.insets, `${label}: the tab menu's Cancel`);
       await close(page, ".row-sheet");
 
-      await headerMore(page, "Close tab");
+      // the open tab's own menu closes it; the workspace's last tab asks first, as the row's does
+      await page.evaluate(async () => {
+        const { snapshot } = await (await fetch("/api/session")).json() as { snapshot: { tabs: { tab_id: string; workspace_id: string }[] } };
+        const active = document.querySelector(".tab-strip-item.is-active [role=tab]")?.getAttribute("data-tab-id");
+        const own = snapshot.tabs.find((tab) => tab.tab_id === active);
+        for (const tab of snapshot.tabs.filter((entry) => entry.workspace_id === own?.workspace_id && entry.tab_id !== own?.tab_id)) {
+          await fetch("/api/tab/close", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ tab_id: tab.tab_id }) });
+        }
+      });
+      await page.waitForFunction(() => document.querySelectorAll(".tab-strip-item").length === 1);
+      await page.locator(".phone-tab-menu, .tab-strip-item.is-active .tab-strip-menu").click();
+      await page.locator(".row-sheet, .row-menu").getByText("Close tab", { exact: true }).click();
       clear(await outside(page, "[role=alertdialog]", UPRIGHT.insets), `${label}: a confirmation clears the insets`);
       await reachable(page.getByRole("alertdialog").getByRole("button", { name: "Close tab" }), UPRIGHT.insets, `${label}: the confirmation's Close tab`);
       await close(page, "[role=alertdialog]");
@@ -242,7 +253,7 @@ try {
       await keep(page, "landscape-settings");
       await close(page, ".settings-dialog");
 
-      await page.locator(".tab-strip-menu").first().click();
+      await page.locator(".phone-tab-menu, .tab-strip-menu").first().click();
       clear(await outside(page, ".row-menu", LANDSCAPE.insets), `${label}: a tab's menu ends above the home indicator`);
       await reachable(page.locator(".row-menu [role=menuitem]").last(), LANDSCAPE.insets, `${label}: the tab menu's last item`);
       await keep(page, "landscape-tab-menu");

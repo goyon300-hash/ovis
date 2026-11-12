@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type DragEvent, type MouseEvent, type MutableRefObject, type PointerEvent, type ReactNode } from "react";
-import { ArchiveRestore, Bot, Columns2, Ellipsis, Eraser, Folder, FolderInput, LockOpen, Maximize2, Minimize2, MoveHorizontal, Pencil, Plus, Rows2, ArrowLeftRight, Terminal, TextSearch, TextWrap, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type DragEvent, type MouseEvent, type MutableRefObject, type PointerEvent, type ReactNode } from "react";
+import { ArchiveRestore, Columns2, Ellipsis, Eraser, Folder, LockOpen, Maximize2, Minimize2, MoveHorizontal, Pencil, Rows2, ArrowLeftRight, TextSearch, TextWrap, X } from "lucide-react";
 import { createPortal } from "react-dom";
 import type { HerdrPane, HerdrTab, PaneLayoutSnapshot, SessionSnapshot } from "../../shared/protocol.ts";
 import { MAX_LABEL_CHARS } from "../../shared/labels.ts";
@@ -14,8 +14,7 @@ import { PaneCachedContext, PanePresentedContext, PaneShownContext, PaneSubmitCo
 import { cachedPaneCells, visitPaneTab } from "../lib/paneTabCache.ts";
 import { routeMissing } from "../lib/api.ts";
 import { layoutCells, zoomMode } from "../lib/layoutMap.ts";
-import { CRAMPED_QUERY, layoutTopology, paneContextPress, paneFieldTarget, SOLO_PANE_QUERY, soloPane, splitPath, splitRatioAt, tabRowHidden } from "../lib/paneCanvas.ts";
-import { rosterPanes } from "../lib/dagPane.ts";
+import { layoutTopology, paneContextPress, paneFieldTarget, SOLO_PANE_QUERY, soloPane, splitPath, splitRatioAt } from "../lib/paneCanvas.ts";
 import { useT } from "../lib/i18n.ts";
 import { useSettings } from "../lib/settings.ts";
 import { MIRROR_WRAP_QUERY, wideGridKey, wideGrids } from "../lib/terminalFold.ts";
@@ -28,7 +27,6 @@ import type { RenameRequest } from "../lib/useRenameRequest.ts";
 import { paneLifetimes } from "../lib/paneLifetime.ts";
 import { usePaneLocked } from "../lib/paneLocks.ts";
 import { sidebarPinKey } from "../lib/sidebarPins.ts";
-import { AgentMark } from "./AgentMark.tsx";
 import { displayPaneTitle } from "./Sidebar.tsx";
 import { RowMenu, type RowMenuItem } from "./RowMenu.tsx";
 import { ConfirmDialog } from "./ConfirmDialog.tsx";
@@ -53,15 +51,12 @@ interface Props {
   onRecoverUnsent?: (target: HerdrPane) => void;
   /** Search conversation over the pane's chat (ChatView), or null where it shows no chat to search */
   onSearchConversation?: (target: HerdrPane) => (() => void) | null;
-  /** the tab row's New tab with agent… and its + (a shell tab): where a lone tab's row is left out (TabStrip's cramped), the pane's menu offers them */
   onNewTab?: () => void;
   onNewTerminal?: () => Promise<void>;
   /** the row's Move to workspace…: a one-pane tab into a new tab of another workspace on this PC; rejects with herdr's refusal */
   onMoveToWorkspace?: (tabId: string, workspaceId: string) => Promise<void>;
   /** the Rename tab shortcut or palette action for the open pane: where the row is left out, its dialog stands in for the row's field (TabStrip clears it) */
   renameRequest?: RenameRequest | null;
-  /** a phone's header title lists the tabs (App): no row is drawn, and its sheet holds New terminal and New tab with agent… */
-  tabsInHeader?: boolean;
   /** a watching device sends no settings: it sees a locked pane's Unlock and cannot use it, as in the Agents list */
   watching?: boolean;
 }
@@ -86,7 +81,7 @@ interface Drag {
 }
 
 /** The active tab, drawn from herdr's rectangles. No browser-owned layout or PTY state. */
-export function PaneCanvas({ snapshot, pane, selectedPaneId, onSelect, onChanged, renderPane, actionsRef, onOpenInHalf, mirrored = false, onRecoverUnsent, onSearchConversation, onNewTab, onNewTerminal, onMoveToWorkspace, renameRequest = null, tabsInHeader = false, watching = false }: Props) {
+export function PaneCanvas({ snapshot, pane, selectedPaneId, onSelect, onChanged, renderPane, actionsRef, onOpenInHalf, mirrored = false, onRecoverUnsent, onSearchConversation, onNewTab, onNewTerminal, onMoveToWorkspace, renameRequest = null, watching = false }: Props) {
   const t = useT();
   const { settings, update: updateSettings } = useSettings();
   const narrowScreen = useMediaQuery(MIRROR_WRAP_QUERY);
@@ -101,7 +96,6 @@ export function PaneCanvas({ snapshot, pane, selectedPaneId, onSelect, onChanged
   // at a phone's width the pane's menu is a bottom sheet, a dialog (RowMenu): its ellipsis says so (G-037)
   const popup = useMediaQuery(SHEET_QUERY) ? "dialog" : "menu";
   const narrow = useMediaQuery(SOLO_PANE_QUERY);
-  const cramped = useMediaQuery(CRAMPED_QUERY);
   const api = useMachineApi();
   const canvas = useRef<HTMLDivElement>(null);
   const [submits] = useState(() => new PaneSubmitRetention());
@@ -142,9 +136,6 @@ export function PaneCanvas({ snapshot, pane, selectedPaneId, onSelect, onChanged
     ?? snapshot?.panes.find((item) => item.tab_id === previousTab)
     ?? null;
   const layout = snapshot?.layouts.find((item) => item.tab_id === presented?.tab_id) ?? null;
-  // the open tab has no row (a phone's header lists the tabs, or a lone tab on a cramped screen): its lone pane draws no ellipsis
-  const loneRowHidden = presented !== null
-    && tabRowHidden(cramped, snapshot?.tabs.filter((tab) => tab.workspace_id === presented.workspace_id).length ?? 0, tabsInHeader);
   const topology = layout ? layoutTopology(layout) : "";
   const latest = useRef({ topology, tabId: presented?.tab_id, paneId: selectedPaneId, selection: 0 });
   latest.current = { topology, tabId: presented?.tab_id, paneId: selectedPaneId,
@@ -172,12 +163,6 @@ export function PaneCanvas({ snapshot, pane, selectedPaneId, onSelect, onChanged
   }, []);
   useEffect(() => { cancelDrag(); }, [topology]);
   useEffect(() => { setMenu(null); setRenaming(null); setRenamingTab(null); setMovingTab(null); setClosingTab(null); setClosing(null); setError(null); renameDrafts.current.clear(); }, [presented?.tab_id]);
-  // one press each: the request depends on itself alone, as the row's does (TabStrip)
-  useLayoutEffect(() => {
-    if (renameRequest === null || !loneRowHidden || !appLayout.rename || !presented) return;
-    const tab = snapshot?.tabs.find((entry) => entry.tab_id === presented.tab_id);
-    if (tab) setRenamingTab(tab);
-  }, [renameRequest]);
   useEffect(() => { if (menu && !snapshot?.panes.some((item) => item.pane_id === menu.paneId)) setMenu(null); }, [snapshot, menu]);
 
   const run = (operation: () => Promise<unknown>): void => {
@@ -236,54 +221,7 @@ export function PaneCanvas({ snapshot, pane, selectedPaneId, onSelect, onChanged
     ...(!appLayout.arrange ? [] : [{ id: "zoom", label: t(layout && zoomMode(layout, target.pane_id) === "off" ? "Unzoom pane" : "Zoom pane"), icon: Maximize2,
       run: () => zoom(target) }]),
   ];
-  // A tab with no row (a phone's header lists the tabs, a lone tab on a cramped phone: TabStrip), so
-  // the pane's menu carries what the row's menu would: the tab's other panes, shown one at a time
-  // there, and the way to a new tab unless the header's tab sheet has it. There the pane draws no
-  // ellipsis of its own: the header's More menu offers this menu (App)
-  const rowItems = (target: HerdrPane): { panes: RowMenuItem[]; tab: RowMenuItem[] } | null => {
-    const tabs = snapshot?.tabs.filter((tab) => tab.workspace_id === target.workspace_id).length ?? 0;
-    if (!tabRowHidden(cramped, tabs, tabsInHeader)) return null;
-    const tab = snapshot?.tabs.find((entry) => entry.tab_id === target.tab_id);
-    const own = rosterPanes(snapshot?.panes.filter((item) => item.tab_id === target.tab_id) ?? [], selectedPaneId);
-    return {
-      panes: own.length < 2 ? [] : own.map((item): RowMenuItem => ({
-        id: `pane:${item.pane_id}`, label: displayPaneTitle(item), icon: Terminal,
-        glyph: item.agent ? <AgentMark agent={item.agent} size={16} /> : undefined,
-        current: item.pane_id === selectedPaneId, run: () => onSelect(item.pane_id),
-      })),
-      tab: [
-        ...(onNewTerminal && !tabsInHeader ? [{ id: "new-terminal", label: t("New terminal"), icon: Plus, disabled: watching, run: () => {
-          const tabId = latest.current.tabId;
-          setError(null);
-          void onNewTerminal().catch((reason: unknown) => {
-            if (alive.current && latest.current.tabId === tabId) setError({ message: t("New terminal failed: {reason}", { reason: userErrorMessage(reason).message }), detail: null });
-          });
-        } }] : []),
-        // herdr moves a tab to another workspace only as its one pane, a DAG viewer the roster hides
-        // counted too; the workspaces are picked in a second menu at the header's More, which this
-        // menu opened from, as the row's menu lists them in place (TabStrip)
-        ...(onMoveToWorkspace && appLayout.move && tab && (snapshot?.panes.filter((item) => item.tab_id === target.tab_id).length ?? 0) === 1
-          && moveDestinations(snapshot?.workspaces ?? [], target, target.workspace_id).length > 0
-          ? [{ id: "move-workspace", label: t("Move to workspace…"), icon: FolderInput, disabled: watching, run: () => {
-            const anchor = document.querySelector<HTMLElement>(".header-more-button") ?? canvas.current;
-            if (anchor) setMovingTab({ tab, anchor });
-          } }] : []),
-        ...(onNewTab && !tabsInHeader ? [{ id: "new-agent-tab", label: t("New tab with agent…"), icon: Bot, disabled: watching, run: onNewTab }] : []),
-        // the row's inline name field is gone with it: the tab is named in a dialog, as a pane is
-        ...(!appLayout.rename || !tab ? [] : [{ id: "rename-tab", label: t("Rename tab"), icon: Pencil, disabled: watching, run: () => setRenamingTab(tab) }]),
-        // the tab's last pane closes it too, but a split tab has no other way to close as one (the row's confirmation: it is the workspace's last tab)
-        ...(tab && !tabLocked(tab.tab_id) ? [{ id: "close-tab", label: t("Close tab"), icon: X, danger: true, disabled: watching, run: () => setClosingTab(tab) }] : []),
-      ],
-    };
-  };
-  const itemsFor = (target: HerdrPane): RowMenuItem[] => {
-    const row = rowItems(target);
-    if (!row) return paneItemsFor(target);
-    // as the row's menu does, a canvas showing one pane at a time offers no split or zoom, only unzoom
-    const own = paneItemsFor(target).filter((item) => item.id === "zoom" ? layout?.zoomed : item.id !== "split-right" && item.id !== "split-down");
-    return [row.panes, own, row.tab].filter((group) => group.length > 0)
-      .flatMap((group, at) => at === 0 ? group : group.map((item, index) => index === 0 ? { ...item, divider: true } : item));
-  };
+  const itemsFor = (target: HerdrPane): RowMenuItem[] => paneItemsFor(target);
   const paneItemsFor = (target: HerdrPane): RowMenuItem[] => {
     const search = onSearchConversation?.(target) ?? null;
     return [
@@ -439,7 +377,7 @@ export function PaneCanvas({ snapshot, pane, selectedPaneId, onSelect, onChanged
           if (paneContextPress(event, apple) && !paneFieldTarget(event.target)) { event.preventDefault(); event.stopPropagation(); }
         }}
         onContextMenuCapture={(event) => context(event, item)}>
-        {!(single && !offTab && loneRowHidden) && <div className="pane-frame-head" draggable={onOpenInHalf !== undefined && !coarse}
+        <div className="pane-frame-head" draggable={onOpenInHalf !== undefined && !coarse}
           onDragStart={(event: DragEvent<HTMLDivElement>) => {
             // dropped on a half of the pane area, the title opens its pane there (App's drop)
             event.dataTransfer.effectAllowed = "move";
@@ -463,7 +401,7 @@ export function PaneCanvas({ snapshot, pane, selectedPaneId, onSelect, onChanged
             // Safari focuses no button a click pressed: focused here, it is the confirmation's opener, which Cancel and Escape hand back to
             // a double click's second press may land on the neighbour that took this corner: only a first press closes
             onClick={(event) => { if (event.detail > 1) return; event.currentTarget.focus({ preventScroll: true }); requestClose(item); }}><X aria-hidden="true" /></button>}
-        </div>}
+        </div>
         <div className="pane-frame-body"><PaneCachedContext.Provider value={cell.cached && !cell.retained}><PaneWatchedContext.Provider value={cell.cached && !cell.retained && watchedTabs.has(item.tab_id)}><PanePresentedContext.Provider value={!offTab}><PaneShownContext.Provider value={!hidden}>{renderPane(item, active, alone === null && cells.length > 1)}</PaneShownContext.Provider></PanePresentedContext.Provider></PaneWatchedContext.Provider></PaneCachedContext.Provider></div>
       </section>;
     })}

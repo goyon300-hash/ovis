@@ -86,6 +86,7 @@ export const TERMINAL_KO: Record<string, string> = {
   "Tab {n}": "탭 {n}",
   "Close tab": "탭 닫기",
   "Tab name": "탭 이름",
+  "Tabs of {workspace}": "{workspace}의 탭",
   "Actions for {tab}": "{tab} 작업",
   "Close {tab}": "{tab} 닫기",
   "{n} more tabs": "탭 {n}개 더 보기",

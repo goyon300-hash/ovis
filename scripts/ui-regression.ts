@@ -1861,7 +1861,8 @@ try {
     "tab labels stay in the terminal tab strip");
   const strip = page.locator(".tab-strip");
   await strip.waitFor();
-  assert.deepEqual(await strip.getByRole("tab").allTextContents(), ["Tab 1", "second"]);
+  // a tab herdr names by its number draws its pane's title instead (TabStrip)
+  assert.deepEqual(await strip.getByRole("tab").allTextContents(), ["made-here", "second"]);
   assert.equal(await strip.getByRole("tab", { selected: true }).textContent(), "second");
   assert.equal(await strip.locator(".tab-strip-panes").count(), 0, "tab chevrons are removed");
   // the header's row is a browser's tab strip: the open tab carries its close, a tab at rest only while hovered
@@ -1884,9 +1885,9 @@ try {
   await stripMenu.waitFor({ state: "visible" });
   await until(async () => await stripMenuOpacity() === "1", "keyboard focus on the selected tab reveals its actions button");
   assert.equal(await strip.locator(".tab-strip-menu:visible").count(), 1, "keyboard focus reveals the selected tab's button alone");
-  await strip.getByRole("tab", { name: "Tab 1", exact: true }).click();
+  await strip.getByRole("tab", { name: "made-here", exact: true }).click();
   await until(async () => (await page.locator(`.pane-select[title^="${created.pane_id} —"]`).getAttribute("aria-current")) === "true", "the first tab opens its pane again");
-  assert.equal(await strip.getByRole("tab", { selected: true }).textContent(), "Tab 1");
+  assert.equal(await strip.getByRole("tab", { selected: true }).textContent(), "made-here");
   // reopened right after a creation: its fields are live and Escape puts it away at once
   // The menu restores this terminal on unmount. Record focus at the dialog's DOM commit,
   // before any animation frame can rescue it: Escape may arrive before that first paint.
@@ -1962,7 +1963,8 @@ try {
   assert.equal(await strip.getByRole("tab").count(), 3, "the strip lists the shell tab");
   const terminalTabId = (await sessionSnapshot()).panes.find((pane) => pane.pane_id === terminalTab.pane_id)?.tab_id;
   assert.ok(terminalTabId, "herdr has the shell tab's pane");
-  await strip.getByRole("tab", { name: "Tab 1", exact: true }).click();
+  // Both shell panes share the same folder fallback: collision prefixes disambiguate the tabs.
+  await strip.getByRole("tab", { name: "1 made-here", exact: true }).click();
   await until(async () => (await page.locator(`.pane-select[title^="${created.pane_id} —"]`).getAttribute("aria-current")) === "true", "the first tab opens its pane again");
   await herdrRpc("tab.close", { tab_id: terminalTabId });
   await until(async () => (await strip.getByRole("tab").count()) === 2, "the shell tab is gone from the strip");
@@ -1970,7 +1972,7 @@ try {
 
   // A tab is renamed and closed from the strip, as herdr's prefix+shift+t and prefix+shift+x.
   const tabsInHerdr = async () => (await sessionSnapshot()).tabs.filter((tab) => tab.workspace_id === created.workspace_id).map((tab) => tab.label);
-  await strip.getByRole("tab", { name: "Tab 1", exact: true }).dblclick();
+  await strip.getByRole("tab", { name: "made-here", exact: true }).dblclick();
   const tabName = strip.getByLabel("Tab name", { exact: true });
   await tabName.waitFor();
   await tabName.fill("  first  ");
@@ -2023,13 +2025,14 @@ try {
   const phoneStrip = tabPhonePage.locator(".tab-strip");
   await phoneStrip.getByRole("tab", { name: "build", exact: true, selected: true }).waitFor();
   assert.equal(await phoneStrip.locator(".tab-strip-close, .tab-strip-panes").count(), 0, "no close button or chevron is rendered");
-  assert.equal(await phoneStrip.locator(".tab-strip-menu:visible").count(), 1, "only the open tab has the touch menu button");
-  await phoneStrip.getByRole("button", { name: "Actions for build", exact: true }).tap();
+  assert.equal(await tabPhonePage.locator(".phone-tab-menu:visible").count(), 1, "the phone header has one scoped action button");
+  await tabPhonePage.locator(".phone-tab-menu").tap();
   // wider than a phone's sheets, the touch menu is a popover at its button
   const tabSheet = tabPhonePage.getByRole("menu", { name: "build", exact: true });
   await tabSheet.waitFor();
   const touchTabItems = await tabSheet.getByRole("menuitem").allTextContents();
-  assert.deepEqual(touchTabItems.slice(-6), ["Move tab left", "Move tab right", "Move to workspace…", "New tab with agent…", "Rename tab", "Close tab"], "a tab between siblings offers both adjacent moves on touch");
+  const nativeTabItems = await tabSheet.getByRole("menuitem").evaluateAll((nodes) => nodes.filter((node) => ["move-left", "move-right", "move-workspace", "new-agent-tab", "rename-tab", "close-tab"].includes((node as HTMLElement).dataset.item ?? "")).map((node) => node.textContent));
+  assert.deepEqual(nativeTabItems, ["Move tab left", "Move tab right", "Move to workspace…", "New tab with agent…", "Rename tab", "Close tab"], "a tab between siblings offers both adjacent moves on touch");
   assert.ok(touchTabItems.includes("Rename pane") && touchTabItems.includes("Close pane"), "the touch menu carries the open pane's actions");
   await tabPhonePage.keyboard.press("Escape");
   await tabSheet.waitFor({ state: "detached" });

@@ -1060,9 +1060,9 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   `visualViewport` so the keyboard does not cover input; otherwise the shell is `100dvh`, because an
   iPhone home screen app reports a visual viewport shorter than the screen without a keyboard.
 - The header is one line at every width. Below `769px`, left to right: the drawer toggle; the
-  flexible context, agent mark and title (it opens the workspace's tabs on a phone) then the
-  PC › workspace › folder crumb; the Chat/Terminal switch; the connection chip while the bridge is
-  not live, the offline pill and the More menu (`⋯`). From `769px` with one pane in view the row is
+  flexible context, agent mark and title, then the PC › workspace › folder crumb; the Chat/Terminal
+  switch; the connection chip while the bridge is not live, the offline pill and the More menu
+  (`⋯`). The workspace's tabs are the row under it (Tab strip and pane canvas). From `769px` with one pane in view the row is
   a browser's tab strip (Chrome's, sized after the Herdr app's tab bar, THIRD_PARTY_NOTICES.md):
   the sidebar's head (`.header-side`: the Ovis wordmark, `src/assets/brand/logo-light.png`
   or `logo-dark.png` by the resolved theme, then the palette and the sidebar toggle, as the Herdr
@@ -1140,7 +1140,8 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   under it (no tab strip or notice between), that bar is glass, as an iPhone's is: `--bar-bg` behind
   `--glass-blur` at `--z-header`, pulled over the pane by its own height (`--header-over`), so the
   transcript scrolls on under it while its first line, the banners and anything else at the pane's
-  top start below it. The xterm mount is not fitted under the chat, so this resizes no pty.
+  top start below it. The xterm mount is not fitted under the chat, so this resizes no pty. A phone
+  always draws the tab row under the header, so its header is the plain bar at every size.
 - From `769px` the sidebar's right edge is a grip (`.sidebar-resizer`, `role="separator"`): drag
   it to resize the sidebar between `240px` and `520px`, never past half the window; the arrow
   keys move the focused edge `16px`, Home and End go to the limits, and a double-click returns to
@@ -1370,7 +1371,7 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   palette has the same move as one Move tab to {workspace} row per workspace, found by a query
   only, as Settings pages are. Rename tab is also a palette action and a rebindable shortcut with
   no default key, as herdr's own `rename_tab` binding: it opens the same name field on the selected
-  pane's tab, and is not offered where the strip is left out (a lone tab on a cramped screen).
+  pane's tab, and is offered only where the runtime supports renaming.
   The `⋯` beside the selected tab holds the same tab actions (the strip's `+` opens a shell tab, so
   New tab with agent… stays here) and also carries the open pane's actions, less Split and Zoom where a phone shows one pane at a time.
   Touch and narrow layouts keep that `⋯` in view; a desktop with a mouse (`hover: hover`,
@@ -1382,30 +1383,31 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   A lone pane beside such a `⋯` draws no second ellipsis (its actions are in the tab's menu), on a
   desktop as on touch. The pane's own context menu carries pane actions; it opens at the pointer
   without changing which pane is focused. The pane header's ellipsis opens the same menu on touch.
-  A phone (at most 640px wide, the sheets' width) draws no tab row for any tab, which gives the pane
-  the row's 44px (header 96 -> 52px). The header's title is the way to the tabs, as the Codex and
-  Claude apps title the open conversation and list the others from it: a `ChevronDown` follows it, and
-  the whole title and crumb, grown to `--touch-target` tall, is one button ("Tabs of {workspace}",
-  `aria-haspopup="dialog"`, `aria-expanded`) that opens the workspace's tabs as a bottom sheet: each
-  tab with its state dot (hollow at rest), its agent's mark and a Close of its own ("Close {tab}",
-  its own stop after the tab in the arrow order), the open tab marked current, its state word for a
-  state; then the open tab's Move tab left / right, then New terminal and New tab with agent…. A
-  pick opens the tab where it was left; Close asks first as the row's does. Such a phone's More
-  carries the open tab's other actions as below, less the two new-tab items its title's list holds.
-  A lone tab with no row (a phone at most 700px tall, including the iPhone Duo's 678-point outer
-  display, landscape or a screen made short by its keyboard) draws no pane ellipsis either: a second
-  `⋯` below the glass header would repeat the header's own. The header's `⋯` is then the one menu,
-  as an iPhone navigation bar (and the Claude iOS app) keeps one overflow button in the bar. After its
-  own items and a divider it carries what the missing row's menu would: a split tab's panes first,
-  then the pane's actions, then New terminal (the row's `+`), New tab with agent… (as Chrome for
-  iPhone keeps New Tab in its overflow menu) and Rename tab, in a dialog in place of the row's inline
-  field, which the palette's Rename tab and its shortcut open too. Move to workspace… (a one-pane
-  tab) lists the other workspaces in a second menu, where the row's menu lists them in place, and
-  Close tab asks first, as the row's does for a workspace's last tab: it closes the workspace too,
-  and is the one way to close a split tab whole there. Extending the compact-height state to the Duo follows
-  Apple's outer-display guidance to put chrome at the edge and preserve vertical room for content.
-  Wherever a lone pane's ellipsis shows to a finger, the pane's banners (View only and the rest)
-  start below it, so none covers it; with no row they start below the glass header.
+  A phone (at most 768px wide) keeps the tab row below the header at every size, a lone tab and
+  short screen included. Following Zed's visible tabs and separate project context rather than a
+  phone chat app's hidden thread list, the workspace drawer toggle moves into the header: folder,
+  workspace name (`--fs-md`) and machine subtitle (`--font-mono`, `--fs-2xs`). The existing drawer
+  owns its focus and close behavior; there is no second hamburger route. Reconnecting and View only
+  remain written in the subtitle, and full names remain in the drawer and action sheets.
+  The row spends its width on tabs and a dedicated trailing `+`, never overlaying a tab. A tab is
+  at most 148px at normal UI scale, and never wider than its viewport; its label ellipsizes. Selected
+  tabs stay wholly visible after selection, viewport resize and late font arrival (`bringOpenTab`),
+  but a font swap does not undo a user's deliberate scroll. All targets remain `--touch-target`
+  (44px), including short screens and the keyboard: 8px more than the old compact row, explicitly
+  traded for usable finger targets.
+  A numeric tab's fallback title uses its first visible pane in authoritative snapshot order,
+  independent of the pane selected or remembered by this browser. Custom and learned labels keep
+  priority; collision numbers remain display-only. No Herdr label or preference is written.
+  The selected tab's `⋯` is portalled from TabStrip into the header's More slot, keeping all native
+  tab/pane mutation guards and confirmations in their existing owner. Its title and header give the
+  full tab name, current pane/agent and location. Pane actions precede tab actions; application
+  commands remain a separate group. A secondary "Tabs of {workspace}" sheet exposes every full name
+  without making normal switching depend on it. Closing returns focus to the header trigger;
+  right-click and the keyboard menu keep their tab target. Desktop tab controls are unchanged.
+  Only a split tab gets a header pane picker; its `1/2` means pane 1 of 2, not tab position. The
+  open pane is marked, and switching changes neither the tab nor the runtime's focus.
+  A lone pane draws no second ellipsis. The phone header remains plain: the row separates it from
+  the transcript. Pane banners, including View only, begin below the header.
 - On a PC whose terminals are the Herdr app's (`HerdrIdentity.runtime` `herdr-core`), the app's
   window owns the workspaces, tabs and splits, and herdr-core refuses to rename, reorder or move
   them, to split, swap, zoom or resize a pane, and the worktree actions. The browser then leaves
@@ -2595,6 +2597,9 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   Merge, each separated by a hairline.
 
 ### Header context and connection
+- On phones with a selected workspace, the header shows the workspace drawer toggle and machine
+  subtitle described under Tab strip above; the tab and current pane's full names are in the scoped
+  action sheet. The following pane-title context applies to wider windows and fallback screens.
 - A selected pane shows agent mark + title (`--fs-md`), then on the same line the crumb
   PC › workspace › folder (`--fs-xs`, `--text-dim`); with one PC registered the PC is left out, as
   the sidebar leaves it out. The folder shows as its last name, and only
@@ -2617,8 +2622,8 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   with the location on two lines, "PC › workspace" then the full path in mono. Where no status bar
   shows, the pane's whole title and its agent lead those lines (`.header-more-title`, `--text`
   `--fw-medium`, "Claude Code · Guard the export button"): the header cuts a long title short and a
-  touch has no tooltip, so More is where a phone reads it in full. Its first item,
-  at every width, is **Search panes and actions**, which opens the command palette (its shortcut
+  touch has no tooltip, so More is where a phone reads it in full. A phone also leads with its
+  scoped pane/tab actions; the application group starts with **Search panes and actions**, which opens the command palette (its shortcut
   as the item's hint where the pointer is fine); then **Find in terminal**, **Browse files** (at
   `<=768px` only: from `769px` Files is the header's own button), **Copy link** and **Alerts**,
   each under the condition its own button had. New tab stays on the tab strip's `+`. The Alerts item says

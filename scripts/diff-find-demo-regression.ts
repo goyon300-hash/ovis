@@ -75,7 +75,7 @@ async function openDiff(page: Page, phone: boolean, path: string): Promise<void>
   if (!(await page.getByRole("dialog", { name: "Files", exact: true }).isVisible())) {
     if (phone) {
       await page.locator(".header-more-button").tap();
-      await page.getByRole("dialog", { name: "More", exact: true }).getByRole("button", { name: "Browse files", exact: true }).tap();
+      await page.locator(".row-sheet").getByRole("button", { name: "Browse files", exact: true }).tap();
     } else await page.locator(".header-files-button").click();
     await page.getByRole("dialog", { name: "Files", exact: true }).waitFor();
     await page.getByRole("button", { name: "Changes", exact: true }).click();
