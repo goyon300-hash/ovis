@@ -112,3 +112,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) to send a change, [development](docs/deve
 ## license
 
 [MIT](LICENSE). Copyright © 2026 devswha.
+
